@@ -65,6 +65,16 @@ vercel
 
 No environment variables required. Optionally set `COOKIE_SECRET` for a custom encryption key.
 
+### Home Assistant Add-on
+
+1. Go to **Settings** > **Add-ons** > **Add-on Store**
+2. Click the three dots menu (top right) > **Repositories**
+3. Add: `https://github.com/GMetaxakis/tuya-dashboard`
+4. Find **Tuya Dashboard** and click **Install**
+5. Start the add-on and click **Open Web UI**
+
+Works on amd64, aarch64 (Raspberry Pi 4/5), and armv7.
+
 ### Docker
 
 ```bash
