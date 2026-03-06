@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, useRef, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ControlPanel from "@/components/panels";
@@ -62,6 +62,8 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
   const [rawResult, setRawResult] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { toast } = useToast();
 
   // Device list for prev/next navigation
@@ -114,9 +116,22 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
   }
 
   // Lightweight refresh for control panels — no loading spinner
-  function refreshDPs() {
+  const refreshDPs = useCallback(() => {
     loadDevice(true);
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deviceId]);
+
+  // Auto-refresh polling
+  useEffect(() => {
+    if (autoRefresh) {
+      intervalRef.current = setInterval(() => loadDevice(true), 5000);
+    } else if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRefresh, deviceId]);
 
   async function handleRename() {
     if (!data) return;
@@ -258,6 +273,17 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
               className="px-3 py-1.5 rounded-md bg-accent text-white text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
             >
               Refresh
+            </button>
+            <button
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                autoRefresh
+                  ? "bg-green/15 border border-green/30 text-green"
+                  : "border border-border bg-bg3 text-text2 hover:border-accent hover:text-text"
+              }`}
+              title="Auto-refresh every 5 seconds"
+            >
+              {autoRefresh ? "Live" : "Auto"}
             </button>
           </div>
         </div>
