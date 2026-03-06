@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ControlPanel from "@/components/panels";
 import { categoryLabel } from "@/lib/categories";
+import { useToast } from "@/components/Toast";
 
 interface DP {
   dp_id: number;
@@ -60,8 +61,8 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
   const [tab, setTab] = useState<Tab>("control");
   const [rawResult, setRawResult] = useState("");
   const [renaming, setRenaming] = useState(false);
-  const [status, setStatus] = useState("");
   const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
 
   // Device list for prev/next navigation
   const [deviceList, setDeviceList] = useState<DeviceListItem[]>(() => {
@@ -122,7 +123,6 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
     const newName = prompt("Rename device:", data.device.name);
     if (!newName || newName === data.device.name) return;
     setRenaming(true);
-    setStatus("Renaming...");
     try {
       const r = await fetch("/api/rename", {
         method: "POST",
@@ -131,15 +131,15 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
       });
       const d = await r.json();
       if (d.success) {
-        setStatus(`Renamed to: ${newName}`);
+        toast(`Renamed to: ${newName}`, "success");
         setData((prev) =>
           prev ? { ...prev, device: { ...prev.device, name: newName } } : prev
         );
       } else {
-        setStatus(`Rename failed: ${d.msg || d.error}`);
+        toast(`Rename failed: ${d.msg || d.error}`, "error");
       }
     } catch (e) {
-      setStatus(`Error: ${(e as Error).message}`);
+      toast(`Error: ${(e as Error).message}`, "error");
     } finally {
       setRenaming(false);
     }
@@ -278,10 +278,6 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
           </div>
         </div>
       </div>
-
-      {status && (
-        <div className="px-4 py-2.5 rounded-lg bg-bg2 text-text2 text-sm mb-5">{status}</div>
-      )}
 
       {/* Prev/Next device names as subtle hints */}
       {(prevDevice || nextDevice) && (
