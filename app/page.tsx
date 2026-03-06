@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface Device {
   id: string;
@@ -86,6 +87,7 @@ export default function Home() {
           >
             {loading ? "Loading..." : "Refresh"}
           </button>
+          <ThemeToggle />
           <button
             onClick={handleLogout}
             className="px-4 py-2 rounded-lg border border-border bg-bg2 text-text2 text-sm hover:text-text hover:border-red transition-colors"
