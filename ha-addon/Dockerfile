@@ -1,23 +1,23 @@
-ARG BUILD_FROM=ghcr.io/hassio-addons/base:17.2.5
+ARG BUILD_FROM
 
-# Build stage — uses node to compile Next.js
+# Build stage
 FROM node:20-alpine AS builder
 RUN apk add --no-cache git
 WORKDIR /app
 RUN git clone --depth 1 https://github.com/GMetaxakis/tuya-dashboard.git .
 RUN npm ci && npm run build
 
-# Production stage — HA base image with s6-overlay
-FROM ${BUILD_FROM}
-
-# Install Node.js
-RUN apk add --no-cache nodejs npm
+# Production stage — plain alpine, no s6-overlay
+FROM node:20-alpine
 
 WORKDIR /app
+ENV NODE_ENV=production
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# s6-overlay service definition
-COPY rootfs/ /
+ENTRYPOINT []
+CMD ["node", "server.js"]
