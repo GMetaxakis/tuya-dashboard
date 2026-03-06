@@ -14,12 +14,7 @@ interface Device {
   ip: string;
 }
 
-const CATEGORIES: Record<string, string> = {
-  pc: "Socket", kg: "Switch", wk: "Thermostat", dj: "Light",
-  sp: "Camera", cs: "Dehumidifier", kqzg: "Air Purifier", cwwsq: "Pet Feeder",
-  hps: "Presence", wsdcg: "T&H Sensor", tdq: "T&H Sensor", wg2: "BLE Gateway",
-  wnykq: "IR Remote", qt: "IR Sub-device", dcb: "Smart Battery", zwjcy: "Plant Sensor",
-};
+import { CATEGORIES } from "@/lib/categories";
 
 export default function Home() {
   const router = useRouter();
@@ -40,6 +35,12 @@ export default function Home() {
       const d = await r.json();
       if (d.success) {
         setDevices(d.result);
+        // Cache device list for prev/next navigation on device pages
+        try {
+          localStorage.setItem("tuya_devices", JSON.stringify(
+            d.result.map((dev: Device) => ({ id: dev.id, name: dev.name, category: dev.category, online: dev.online }))
+          ));
+        } catch { /* ignore */ }
       } else {
         setError(d.error || "Failed to load devices");
       }

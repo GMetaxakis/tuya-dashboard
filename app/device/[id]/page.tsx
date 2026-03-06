@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, use, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ControlPanel from "@/components/panels";
+import { categoryLabel } from "@/lib/categories";
 
 interface DP {
   dp_id: number;
@@ -41,6 +42,13 @@ interface InspectData {
   localtuya_config: Record<string, unknown>[];
 }
 
+interface DeviceListItem {
+  id: string;
+  name: string;
+  category: string;
+  online: boolean;
+}
+
 type Tab = "control" | "dps" | "suggested" | "config" | "raw";
 
 export default function DevicePage({ params }: { params: Promise<{ id: string }> }) {
@@ -54,6 +62,17 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
   const [renaming, setRenaming] = useState(false);
   const [status, setStatus] = useState("");
   const [copied, setCopied] = useState(false);
+
+  // Load cached device list for prev/next navigation
+  const deviceList = useMemo<DeviceListItem[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("tuya_devices") || "[]");
+    } catch { return []; }
+  }, []);
+
+  const currentIndex = deviceList.findIndex((d) => d.id === deviceId);
+  const prevDevice = currentIndex > 0 ? deviceList[currentIndex - 1] : null;
+  const nextDevice = currentIndex < deviceList.length - 1 ? deviceList[currentIndex + 1] : null;
 
   useEffect(() => {
     loadDevice();
@@ -149,45 +168,117 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
 
   return (
     <div className="max-w-6xl mx-auto px-5 py-6">
-      {/* Header */}
-      <header className="flex items-center justify-between pb-4 mb-6 border-b border-border flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="px-3 py-1.5 rounded-md border border-border text-text2 text-sm hover:bg-bg2">
-            &larr;
-          </Link>
-          <h1 className="text-xl font-semibold">
-            <span className="text-accent">{dev.name}</span>
-          </h1>
-          <button
-            onClick={handleRename}
-            disabled={renaming}
-            className="px-2.5 py-1 rounded-md border border-border bg-bg2 text-text2 text-xs hover:border-accent hover:text-text disabled:opacity-50"
-          >
-            Rename
-          </button>
+      {/* Navigation bar */}
+      <div className="flex items-center justify-between mb-6">
+        <Link href="/" className="px-3 py-1.5 rounded-md border border-border text-text2 text-sm hover:bg-bg2 hover:text-text transition-colors">
+          &larr; All Devices
+        </Link>
+        <div className="flex items-center gap-2">
+          {prevDevice ? (
+            <Link
+              href={`/device/${prevDevice.id}`}
+              className="px-3 py-1.5 rounded-md border border-border text-text2 text-sm hover:bg-bg2 hover:text-text transition-colors"
+              title={prevDevice.name}
+            >
+              &larr; Prev
+            </Link>
+          ) : (
+            <span className="px-3 py-1.5 rounded-md border border-border text-text2/30 text-sm">&larr; Prev</span>
+          )}
+          {deviceList.length > 0 && (
+            <span className="text-text2 text-xs tabular-nums">
+              {currentIndex + 1} / {deviceList.length}
+            </span>
+          )}
+          {nextDevice ? (
+            <Link
+              href={`/device/${nextDevice.id}`}
+              className="px-3 py-1.5 rounded-md border border-border text-text2 text-sm hover:bg-bg2 hover:text-text transition-colors"
+              title={nextDevice.name}
+            >
+              Next &rarr;
+            </Link>
+          ) : (
+            <span className="px-3 py-1.5 rounded-md border border-border text-text2/30 text-sm">Next &rarr;</span>
+          )}
         </div>
-      </header>
+      </div>
+
+      {/* Device header */}
+      <div className="bg-bg2 rounded-xl border border-border p-5 mb-6">
+        <div className="flex items-start justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4">
+            {/* Online indicator */}
+            <div className={`w-3 h-3 rounded-full shrink-0 mt-1.5 ${dev.is_online ? "bg-green shadow-[0_0_8px_rgba(52,199,89,0.5)]" : "bg-red shadow-[0_0_8px_rgba(255,69,58,0.3)]"}`} />
+            <div>
+              <h1 className="text-2xl font-semibold">{dev.name}</h1>
+              <div className="flex items-center gap-3 mt-1.5">
+                <span className="inline-block px-2.5 py-0.5 rounded-md bg-accent/15 text-accent text-xs font-medium">
+                  {categoryLabel(dev.category)}
+                </span>
+                <span className={`text-xs font-medium ${dev.is_online ? "text-green" : "text-red"}`}>
+                  {dev.is_online ? "Online" : "Offline"}
+                </span>
+                {dev.ip && dev.ip !== "?" && (
+                  <span className="text-xs text-text2 font-mono">{dev.ip}</span>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRename}
+              disabled={renaming}
+              className="px-3 py-1.5 rounded-md border border-border bg-bg3 text-text2 text-xs hover:border-accent hover:text-text disabled:opacity-50 transition-colors"
+            >
+              Rename
+            </button>
+            <button
+              onClick={loadDevice}
+              disabled={loading}
+              className="px-3 py-1.5 rounded-md bg-accent text-white text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {/* Compact info row */}
+        <div className="flex flex-wrap gap-x-6 gap-y-1 mt-4 pt-4 border-t border-border">
+          <div className="text-xs">
+            <span className="text-text2">Device ID: </span>
+            <span className="font-mono text-text2/80">{deviceId}</span>
+          </div>
+          <div className="text-xs">
+            <span className="text-text2">Product: </span>
+            <span className="font-mono text-text2/80">{dev.product_id}</span>
+          </div>
+          <div className="text-xs">
+            <span className="text-text2">DPs: </span>
+            <span className="text-text2/80">{data.dps.length}</span>
+          </div>
+        </div>
+      </div>
 
       {status && (
         <div className="px-4 py-2.5 rounded-lg bg-bg2 text-text2 text-sm mb-5">{status}</div>
       )}
 
-      {/* Info cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-        <InfoCard label="Status" value={dev.is_online ? "Online" : "Offline"} dot={dev.is_online} />
-        <InfoCard label="Category" value={dev.category} />
-        <InfoCard label="IP" value={dev.ip} mono />
-        <InfoCard label="Device ID" value={deviceId} mono />
-        <InfoCard label="Product" value={dev.product_id} mono />
-      </div>
+      {/* Prev/Next device names as subtle hints */}
+      {(prevDevice || nextDevice) && (
+        <div className="flex justify-between mb-4 text-xs text-text2/50">
+          <span>{prevDevice ? `← ${prevDevice.name}` : ""}</span>
+          <span>{nextDevice ? `${nextDevice.name} →` : ""}</span>
+        </div>
+      )}
 
       {/* Tabs */}
-      <div className="flex gap-0.5 bg-bg2 rounded-lg p-1 w-fit mb-5">
+      <div className="flex gap-0.5 bg-bg2 rounded-lg p-1 w-fit mb-5 overflow-x-auto">
         {(["control", "dps", "suggested", "config", "raw"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
               tab === t ? "bg-bg3 text-text" : "text-text2 hover:text-text"
             }`}
           >
@@ -207,73 +298,77 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
       )}
 
       {tab === "dps" && (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-text2 text-xs uppercase tracking-wider">
-              <th className="text-left p-3 border-b border-border">DP</th>
-              <th className="text-left p-3 border-b border-border">Code</th>
-              <th className="text-left p-3 border-b border-border">Type</th>
-              <th className="text-left p-3 border-b border-border">R/W</th>
-              <th className="text-left p-3 border-b border-border">Value</th>
-              <th className="text-left p-3 border-b border-border">Range</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.dps.map((dp) => (
-              <tr key={dp.dp_id} className="hover:bg-bg2">
-                <td className="p-3 border-b border-border font-mono font-semibold text-accent">{dp.dp_id}</td>
-                <td className="p-3 border-b border-border font-mono text-xs">{dp.code}</td>
-                <td className="p-3 border-b border-border">{dp.type}</td>
-                <td className="p-3 border-b border-border">
-                  <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                    dp.writable ? "bg-green/15 text-green" : "bg-text2/15 text-text2"
-                  }`}>
-                    {dp.writable ? "RW" : "RO"}
-                  </span>
-                </td>
-                <td className="p-3 border-b border-border">
-                  <code className="text-xs">{String(dp.current_value ?? "?")}</code>
-                </td>
-                <td className="p-3 border-b border-border text-text2 text-xs font-mono">
-                  {dp.values && Object.keys(dp.values).length > 0
-                    ? Object.entries(dp.values).map(([k, v]) => `${k}=${v}`).join(", ")
-                    : ""}
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-text2 text-xs uppercase tracking-wider">
+                <th className="text-left p-3 border-b border-border">DP</th>
+                <th className="text-left p-3 border-b border-border">Code</th>
+                <th className="text-left p-3 border-b border-border">Type</th>
+                <th className="text-left p-3 border-b border-border">R/W</th>
+                <th className="text-left p-3 border-b border-border">Value</th>
+                <th className="text-left p-3 border-b border-border">Range</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.dps.map((dp) => (
+                <tr key={dp.dp_id} className="hover:bg-bg2">
+                  <td className="p-3 border-b border-border font-mono font-semibold text-accent">{dp.dp_id}</td>
+                  <td className="p-3 border-b border-border font-mono text-xs">{dp.code}</td>
+                  <td className="p-3 border-b border-border">{dp.type}</td>
+                  <td className="p-3 border-b border-border">
+                    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                      dp.writable ? "bg-green/15 text-green" : "bg-text2/15 text-text2"
+                    }`}>
+                      {dp.writable ? "RW" : "RO"}
+                    </span>
+                  </td>
+                  <td className="p-3 border-b border-border">
+                    <code className="text-xs">{String(dp.current_value ?? "?")}</code>
+                  </td>
+                  <td className="p-3 border-b border-border text-text2 text-xs font-mono">
+                    {dp.values && Object.keys(dp.values).length > 0
+                      ? Object.entries(dp.values).map(([k, v]) => `${k}=${v}`).join(", ")
+                      : ""}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {tab === "suggested" && (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-text2 text-xs uppercase tracking-wider">
-              <th className="text-left p-3 border-b border-border">DP</th>
-              <th className="text-left p-3 border-b border-border">Platform</th>
-              <th className="text-left p-3 border-b border-border">Code</th>
-              <th className="text-left p-3 border-b border-border">Class</th>
-              <th className="text-left p-3 border-b border-border">Scale</th>
-              <th className="text-left p-3 border-b border-border">Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.suggested_entities.map((e) => (
-              <tr key={e.id} className="hover:bg-bg2">
-                <td className="p-3 border-b border-border font-mono font-semibold text-accent">{e.id}</td>
-                <td className="p-3 border-b border-border">
-                  <span className="inline-block px-2 py-0.5 rounded bg-bg3 text-xs font-medium">{e.platform}</span>
-                </td>
-                <td className="p-3 border-b border-border font-mono text-xs">{e.code}</td>
-                <td className="p-3 border-b border-border">{e.device_class || "-"}</td>
-                <td className="p-3 border-b border-border">{e.scaling || "-"}</td>
-                <td className="p-3 border-b border-border">
-                  <code className="text-xs">{String(e.current_value ?? "?")}</code>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-text2 text-xs uppercase tracking-wider">
+                <th className="text-left p-3 border-b border-border">DP</th>
+                <th className="text-left p-3 border-b border-border">Platform</th>
+                <th className="text-left p-3 border-b border-border">Code</th>
+                <th className="text-left p-3 border-b border-border">Class</th>
+                <th className="text-left p-3 border-b border-border">Scale</th>
+                <th className="text-left p-3 border-b border-border">Value</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.suggested_entities.map((e) => (
+                <tr key={e.id} className="hover:bg-bg2">
+                  <td className="p-3 border-b border-border font-mono font-semibold text-accent">{e.id}</td>
+                  <td className="p-3 border-b border-border">
+                    <span className="inline-block px-2 py-0.5 rounded bg-bg3 text-xs font-medium">{e.platform}</span>
+                  </td>
+                  <td className="p-3 border-b border-border font-mono text-xs">{e.code}</td>
+                  <td className="p-3 border-b border-border">{e.device_class || "-"}</td>
+                  <td className="p-3 border-b border-border">{e.scaling || "-"}</td>
+                  <td className="p-3 border-b border-border">
+                    <code className="text-xs">{String(e.current_value ?? "?")}</code>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {tab === "config" && (
@@ -310,20 +405,6 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-function InfoCard({ label, value, mono, dot }: { label: string; value: string; mono?: boolean; dot?: boolean }) {
-  return (
-    <div className="bg-bg2 rounded-lg p-3.5 border border-border">
-      <div className="text-[11px] uppercase text-text2 tracking-wide mb-1">{label}</div>
-      <div className={`text-sm font-medium ${mono ? "font-mono text-xs break-all" : ""}`}>
-        {dot !== undefined && (
-          <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${dot ? "bg-green" : "bg-red"}`} />
-        )}
-        {value}
-      </div>
     </div>
   );
 }
