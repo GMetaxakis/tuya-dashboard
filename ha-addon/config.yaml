@@ -1,5 +1,5 @@
 name: Tuya Dashboard
-version: "1.0.3"
+version: "1.0.4"
 slug: tuya-dashboard
 description: Inspect and control your Tuya smart devices from Home Assistant
 url: https://github.com/GMetaxakis/tuya-dashboard
@@ -10,12 +10,10 @@ arch:
 init: false
 startup: application
 boot: auto
-ingress: true
-ingress_port: 3000
-panel_icon: mdi:devices
-panel_title: Tuya Dashboard
+ingress: false
+host_network: true
 ports:
-  3000/tcp: null
+  3000/tcp: 3000
 ports_description:
   3000/tcp: Web interface
 options: {}
