@@ -17,12 +17,29 @@ interface Device {
 
 import { CATEGORIES } from "@/lib/categories";
 
+type ViewMode = "list" | "rooms";
+
+interface Room {
+  id: string;
+  name: string;
+  device_ids: string[];
+}
+
+interface Space {
+  id: string;
+  name: string;
+  rooms: Room[];
+}
+
 export default function Home() {
   const router = useRouter();
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [spaces, setSpaces] = useState<Space[]>([]);
+  const [spacesLoading, setSpacesLoading] = useState(false);
 
   const loadDevices = useCallback(async () => {
     setLoading(true);
@@ -53,6 +70,23 @@ export default function Home() {
   }, [router]);
 
   useEffect(() => { loadDevices(); }, [loadDevices]);
+
+  async function loadSpaces() {
+    if (spaces.length > 0) return;
+    setSpacesLoading(true);
+    try {
+      const r = await fetch("/api/spaces");
+      const d = await r.json();
+      if (d.success) setSpaces(d.spaces);
+    } catch { /* ignore */ }
+    finally { setSpacesLoading(false); }
+  }
+
+  function toggleView() {
+    const next = viewMode === "list" ? "rooms" : "list";
+    setViewMode(next);
+    if (next === "rooms") loadSpaces();
+  }
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -101,65 +135,167 @@ export default function Home() {
         <div className="px-4 py-3 rounded-lg bg-red/10 text-red text-sm mb-5">{error}</div>
       )}
       {!error && !loading && (
-        <div className="px-4 py-2.5 rounded-lg bg-bg2 text-text2 text-sm mb-5">
-          {devices.length} devices
+        <div className="flex items-center justify-between px-4 py-2.5 rounded-lg bg-bg2 text-text2 text-sm mb-5">
+          <span>{devices.length} devices</span>
+          <button
+            onClick={toggleView}
+            className="text-xs text-accent hover:underline"
+          >
+            {viewMode === "list" ? "Group by room" : "Show flat list"}
+          </button>
         </div>
       )}
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-text2 text-xs uppercase tracking-wider">
-              <th className="text-left p-3 border-b border-border w-8"></th>
-              <th className="text-left p-3 border-b border-border">Name</th>
-              <th className="text-left p-3 border-b border-border">Category</th>
-              <th className="text-left p-3 border-b border-border">Device ID</th>
-              <th className="text-left p-3 border-b border-border">Local Key</th>
-              <th className="text-left p-3 border-b border-border">IP</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr>
-                <td colSpan={6} className="p-8 text-center text-text2">
-                  <div className="inline-block w-5 h-5 border-2 border-border border-t-accent rounded-full animate-spin" />
-                </td>
+      {viewMode === "rooms" ? (
+        spacesLoading ? (
+          <div className="p-8 text-center text-text2">
+            <div className="inline-block w-5 h-5 border-2 border-border border-t-accent rounded-full animate-spin" />
+            <span className="ml-3">Loading rooms...</span>
+          </div>
+        ) : (
+          <RoomView spaces={spaces} devices={filtered} search={search} />
+        )
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-text2 text-xs uppercase tracking-wider">
+                <th className="text-left p-3 border-b border-border w-8"></th>
+                <th className="text-left p-3 border-b border-border">Name</th>
+                <th className="text-left p-3 border-b border-border">Category</th>
+                <th className="text-left p-3 border-b border-border">Device ID</th>
+                <th className="text-left p-3 border-b border-border">Local Key</th>
+                <th className="text-left p-3 border-b border-border">IP</th>
               </tr>
-            )}
-            {!loading && filtered.map((d) => (
-              <tr key={d.id} className="hover:bg-bg2 transition-colors">
-                <td className="p-3 border-b border-border">
-                  <span className={`inline-block w-2 h-2 rounded-full ${d.online ? "bg-green" : "bg-red"}`} />
-                </td>
-                <td className="p-3 border-b border-border">
-                  <Link href={`/device/${d.id}`} className="font-medium hover:text-accent transition-colors">
-                    {d.name}
-                  </Link>
-                </td>
-                <td className="p-3 border-b border-border">
-                  <span className="inline-block px-2 py-0.5 rounded bg-bg3 text-accent text-xs font-medium">
-                    {CATEGORIES[d.category] || d.category}
-                  </span>
-                </td>
-                <td className="p-3 border-b border-border font-mono text-xs text-text2">{d.id}</td>
-                <td className="p-3 border-b border-border font-mono text-xs text-text2 max-w-36 truncate" title={d.local_key}>
-                  {d.local_key}
-                </td>
-                <td className="p-3 border-b border-border font-mono text-xs text-text2">{d.ip}</td>
-              </tr>
-            ))}
-            {!loading && !filtered.length && !loading && (
-              <tr>
-                <td colSpan={6} className="p-8 text-center text-text2">
-                  {search ? "No devices match your search" : "No devices found"}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {loading && (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-text2">
+                    <div className="inline-block w-5 h-5 border-2 border-border border-t-accent rounded-full animate-spin" />
+                  </td>
+                </tr>
+              )}
+              {!loading && filtered.map((d) => (
+                <tr key={d.id} className="hover:bg-bg2 transition-colors">
+                  <td className="p-3 border-b border-border">
+                    <span className={`inline-block w-2 h-2 rounded-full ${d.online ? "bg-green" : "bg-red"}`} />
+                  </td>
+                  <td className="p-3 border-b border-border">
+                    <Link href={`/device/${d.id}`} className="font-medium hover:text-accent transition-colors">
+                      {d.name}
+                    </Link>
+                  </td>
+                  <td className="p-3 border-b border-border">
+                    <span className="inline-block px-2 py-0.5 rounded bg-bg3 text-accent text-xs font-medium">
+                      {CATEGORIES[d.category] || d.category}
+                    </span>
+                  </td>
+                  <td className="p-3 border-b border-border font-mono text-xs text-text2">{d.id}</td>
+                  <td className="p-3 border-b border-border font-mono text-xs text-text2 max-w-36 truncate" title={d.local_key}>
+                    {d.local_key}
+                  </td>
+                  <td className="p-3 border-b border-border font-mono text-xs text-text2">{d.ip}</td>
+                </tr>
+              ))}
+              {!loading && !filtered.length && (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-text2">
+                    {search ? "No devices match your search" : "No devices found"}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <ApiExplorer />
+    </div>
+  );
+}
+
+function RoomView({ spaces, devices, search }: { spaces: Space[]; devices: Device[]; search: string }) {
+  const deviceMap = new Map(devices.map((d) => [d.id, d]));
+  const assignedIds = new Set<string>();
+
+  // Collect assigned device IDs
+  for (const space of spaces) {
+    for (const room of space.rooms) {
+      for (const id of room.device_ids) assignedIds.add(id);
+    }
+  }
+
+  // Devices not in any room
+  const unassigned = devices.filter((d) => !assignedIds.has(d.id));
+
+  function renderDevice(d: Device) {
+    return (
+      <Link
+        key={d.id}
+        href={`/device/${d.id}`}
+        className="flex items-center gap-3 p-3 rounded-lg bg-bg3 hover:bg-border transition-colors"
+      >
+        <span className={`w-2 h-2 rounded-full shrink-0 ${d.online ? "bg-green" : "bg-red"}`} />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium truncate">{d.name}</div>
+          <div className="text-xs text-text2">{CATEGORIES[d.category] || d.category}</div>
+        </div>
+      </Link>
+    );
+  }
+
+  if (spaces.length === 0) {
+    return <div className="p-8 text-center text-text2">No rooms found. Your Tuya account may not have spaces configured.</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      {spaces.map((space) => (
+        <div key={space.id}>
+          <h2 className="text-lg font-semibold mb-3">{space.name}</h2>
+          <div className="space-y-4">
+            {space.rooms.map((room) => {
+              const roomDevices = room.device_ids
+                .map((id) => deviceMap.get(id))
+                .filter((d): d is Device => !!d && (
+                  !search ||
+                  d.name.toLowerCase().includes(search.toLowerCase()) ||
+                  d.category.includes(search.toLowerCase())
+                ));
+
+              if (roomDevices.length === 0) return null;
+
+              return (
+                <div key={room.id} className="bg-bg2 rounded-xl border border-border p-4">
+                  <h3 className="text-sm font-semibold text-accent uppercase tracking-wider mb-3">
+                    {room.name}
+                    <span className="text-text2 ml-2 normal-case tracking-normal font-normal">{roomDevices.length}</span>
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {roomDevices.map(renderDevice)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      {unassigned.length > 0 && (
+        <div className="bg-bg2 rounded-xl border border-border p-4">
+          <h3 className="text-sm font-semibold text-text2 uppercase tracking-wider mb-3">
+            Unassigned
+            <span className="text-text2 ml-2 normal-case tracking-normal font-normal">{unassigned.length}</span>
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {unassigned.filter((d) =>
+              !search ||
+              d.name.toLowerCase().includes(search.toLowerCase()) ||
+              d.category.includes(search.toLowerCase())
+            ).map(renderDevice)}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
