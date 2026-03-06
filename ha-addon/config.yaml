@@ -1,5 +1,5 @@
 name: Tuya Dashboard
-version: "1.0.1"
+version: "1.0.2"
 slug: tuya-dashboard
 description: Inspect and control your Tuya smart devices from Home Assistant
 url: https://github.com/GMetaxakis/tuya-dashboard
