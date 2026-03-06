@@ -9,22 +9,38 @@ export async function GET(request: NextRequest) {
   if (!deviceId) return NextResponse.json({ success: false, error: "id parameter required" }, { status: 400 });
 
   try {
-    const [infoResult, { merged, category }] = await Promise.all([
-      api.getDeviceInfo(deviceId),
+    // Fetch device info, device list (for fallback name/online), and DPs in parallel
+    const [infoResult, allDevices, { merged, category }] = await Promise.all([
+      api.getDeviceInfo(deviceId).catch(() => ({ success: false } as Record<string, unknown>)),
+      api.getDevices(),
       mergeSpecAndShadow(api, deviceId),
     ]);
 
-    let devInfo: Record<string, unknown> = { category };
+    // Find this device in the full list (reliable source for name + online)
+    const listDevice = allDevices.find(
+      (d) => (d.id || d.device_id) === deviceId
+    );
+
+    // Build device info, preferring info API but falling back to list
+    let devInfo: Record<string, unknown> = {
+      name: listDevice?.name || "?",
+      category: listDevice?.category || category,
+      is_online: listDevice?.is_online ?? listDevice?.online ?? false,
+      ip: "?",
+      product_id: listDevice?.product_id || "?",
+    };
+
+    // Override with info API data if available (has IP, etc.)
     if (infoResult.success && infoResult.result) {
       const devs = infoResult.result as Record<string, unknown>[] | Record<string, unknown>;
       const dev = Array.isArray(devs) ? devs[0] : devs;
       if (dev) {
         devInfo = {
-          name: dev.name || "?",
-          category: dev.category || category,
-          is_online: dev.is_online ?? false,
-          ip: dev.ip || "?",
-          product_id: dev.product_id || "?",
+          name: dev.name || devInfo.name,
+          category: dev.category || devInfo.category,
+          is_online: dev.is_online ?? devInfo.is_online,
+          ip: dev.ip || devInfo.ip,
+          product_id: dev.product_id || devInfo.product_id,
         };
       }
     }

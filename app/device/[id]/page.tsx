@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use, useMemo } from "react";
+import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ControlPanel from "@/components/panels";
@@ -63,16 +63,30 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
   const [status, setStatus] = useState("");
   const [copied, setCopied] = useState(false);
 
-  // Load cached device list for prev/next navigation
-  const deviceList = useMemo<DeviceListItem[]>(() => {
+  // Device list for prev/next navigation
+  const [deviceList, setDeviceList] = useState<DeviceListItem[]>(() => {
     try {
       return JSON.parse(localStorage.getItem("tuya_devices") || "[]");
     } catch { return []; }
-  }, []);
+  });
+
+  // If no cached list, fetch it
+  useEffect(() => {
+    if (deviceList.length > 0) return;
+    fetch("/api/devices").then((r) => r.json()).then((d) => {
+      if (d.success && d.result) {
+        const list = d.result.map((dev: { id: string; name: string; category: string; online: boolean }) => ({
+          id: dev.id, name: dev.name, category: dev.category, online: dev.online,
+        }));
+        setDeviceList(list);
+        try { localStorage.setItem("tuya_devices", JSON.stringify(list)); } catch { /* */ }
+      }
+    }).catch(() => {});
+  }, [deviceList.length]);
 
   const currentIndex = deviceList.findIndex((d) => d.id === deviceId);
   const prevDevice = currentIndex > 0 ? deviceList[currentIndex - 1] : null;
-  const nextDevice = currentIndex < deviceList.length - 1 ? deviceList[currentIndex + 1] : null;
+  const nextDevice = currentIndex >= 0 && currentIndex < deviceList.length - 1 ? deviceList[currentIndex + 1] : null;
 
   useEffect(() => {
     loadDevice();
