@@ -162,14 +162,21 @@ export default function Home() {
   );
 }
 
-const API_CATALOG: { group: string; endpoints: { method: string; path: string; label: string }[] }[] = [
+interface APIEndpoint {
+  method: string;
+  path: string;
+  label: string;
+  body?: string;
+}
+
+const API_CATALOG: { group: string; endpoints: APIEndpoint[] }[] = [
   {
     group: "Devices",
     endpoints: [
       { method: "GET", path: "/v1.0/iot-01/associated-users/devices?size=100", label: "List all devices" },
       { method: "GET", path: "/v2.0/cloud/thing/device?device_ids={device_id}", label: "Device info" },
       { method: "GET", path: "/v1.0/iot-03/devices/{device_id}", label: "Device details (v1)" },
-      { method: "PUT", path: "/v1.0/iot-03/devices/{device_id}", label: "Rename device" },
+      { method: "PUT", path: "/v1.0/iot-03/devices/{device_id}", label: "Rename device", body: '{"name": "New Name"}' },
     ],
   },
   {
@@ -184,8 +191,8 @@ const API_CATALOG: { group: string; endpoints: { method: string; path: string; l
   {
     group: "Commands",
     endpoints: [
-      { method: "POST", path: "/v1.0/iot-03/devices/{device_id}/commands", label: "Send commands" },
-      { method: "POST", path: "/v2.0/cloud/thing/{device_id}/shadow/properties/issue", label: "Issue shadow properties" },
+      { method: "POST", path: "/v1.0/iot-03/devices/{device_id}/commands", label: "Send commands", body: '{"commands": [{"code": "switch_1", "value": true}]}' },
+      { method: "POST", path: "/v2.0/cloud/thing/{device_id}/shadow/properties/issue", label: "Issue shadow properties", body: '{"properties": [{"dp_id": 1, "value": true}]}' },
     ],
   },
   {
@@ -220,9 +227,11 @@ function ApiExplorer() {
   const [loading, setLoading] = useState(false);
   const [showCatalog, setShowCatalog] = useState(false);
 
-  const selectEndpoint = (ep: { method: string; path: string }) => {
+  const selectEndpoint = (ep: APIEndpoint) => {
     setMethod(ep.method);
     setPath(ep.path);
+    if (ep.body) setBody(ep.body);
+    else if (ep.method === "GET" || ep.method === "DELETE") setBody("");
     setShowCatalog(false);
   };
 
