@@ -2,7 +2,7 @@
 
 A modern web dashboard for inspecting and controlling your Tuya smart home devices. Built with Next.js, connects directly to the Tuya Cloud API. No server-side secrets needed — bring your own Tuya credentials.
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FGMetaxakis%2Ftuya-dashboard)
+[![Deploy to Vercel](https://img.shields.io/badge/Deploy%20to-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/new/clone?repository-url=https://github.com/GMetaxakis/tuya-dashboard)
 
 ## Features
 
