@@ -162,21 +162,94 @@ export default function Home() {
   );
 }
 
+const API_CATALOG: { group: string; endpoints: { method: string; path: string; label: string }[] }[] = [
+  {
+    group: "Devices",
+    endpoints: [
+      { method: "GET", path: "/v1.0/iot-01/associated-users/devices?size=100", label: "List all devices" },
+      { method: "GET", path: "/v2.0/cloud/thing/device?device_ids={device_id}", label: "Device info" },
+      { method: "GET", path: "/v1.0/iot-03/devices/{device_id}", label: "Device details (v1)" },
+      { method: "PUT", path: "/v1.0/iot-03/devices/{device_id}", label: "Rename device" },
+    ],
+  },
+  {
+    group: "Data Points",
+    endpoints: [
+      { method: "GET", path: "/v2.0/cloud/thing/{device_id}/shadow/properties", label: "Shadow properties (live DPs)" },
+      { method: "GET", path: "/v1.0/iot-03/devices/{device_id}/specification", label: "Device specification (DP defs)" },
+      { method: "GET", path: "/v1.0/iot-03/devices/{device_id}/status", label: "Device status" },
+      { method: "GET", path: "/v1.0/iot-03/devices/{device_id}/functions", label: "Device functions (writable DPs)" },
+    ],
+  },
+  {
+    group: "Commands",
+    endpoints: [
+      { method: "POST", path: "/v1.0/iot-03/devices/{device_id}/commands", label: "Send commands" },
+      { method: "POST", path: "/v2.0/cloud/thing/{device_id}/shadow/properties/issue", label: "Issue shadow properties" },
+    ],
+  },
+  {
+    group: "Logs & History",
+    endpoints: [
+      { method: "GET", path: "/v2.0/cloud/thing/{device_id}/report-logs?start_time={start}&end_time={end}&size=20", label: "Report logs" },
+      { method: "GET", path: "/v2.0/cloud/thing/{device_id}/state-change-logs?start_time={start}&end_time={end}&size=20", label: "State change logs" },
+    ],
+  },
+  {
+    group: "Homes & Rooms",
+    endpoints: [
+      { method: "GET", path: "/v2.0/cloud/thing/space/child?space_id=0", label: "List homes" },
+      { method: "GET", path: "/v2.0/cloud/thing/space/child?space_id={space_id}", label: "List rooms in home" },
+      { method: "GET", path: "/v2.0/cloud/thing/space/device?space_id={space_id}", label: "Devices in room" },
+    ],
+  },
+  {
+    group: "Scenes & Automation",
+    endpoints: [
+      { method: "GET", path: "/v2.0/cloud/scene/rule?space_id={space_id}", label: "List scenes/automations" },
+      { method: "POST", path: "/v2.0/cloud/scene/rule/{rule_id}/actions/trigger", label: "Trigger scene" },
+    ],
+  },
+];
+
 function ApiExplorer() {
   const [method, setMethod] = useState("GET");
   const [path, setPath] = useState("");
+  const [body, setBody] = useState("");
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showCatalog, setShowCatalog] = useState(false);
+
+  const selectEndpoint = (ep: { method: string; path: string }) => {
+    setMethod(ep.method);
+    setPath(ep.path);
+    setShowCatalog(false);
+  };
+
+  const parseBody = (s: string) => { try { return JSON.parse(s); } catch { return s; } };
 
   const send = async () => {
     if (!path) return;
+    let finalPath = path;
+    // Prompt to fill placeholders like {device_id}
+    const placeholders = path.match(/\{[^}]+\}/g);
+    if (placeholders) {
+      const filled = window.prompt(
+        `Fill placeholders: ${placeholders.join(", ")}\n\nEdit the path:`,
+        path
+      );
+      if (!filled) return;
+      finalPath = filled;
+      setPath(filled);
+      if (/\{[^}]+\}/.test(filled)) return;
+    }
     setLoading(true);
     setResult("Loading...");
     try {
       const r = await fetch("/api/raw", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ method, path }),
+        body: JSON.stringify({ method, path: finalPath, ...(body && (method === "POST" || method === "PUT") ? { body: parseBody(body) } : {}) }),
       });
       setResult(JSON.stringify(await r.json(), null, 2));
     } catch (e) {
@@ -188,7 +261,40 @@ function ApiExplorer() {
 
   return (
     <div className="mt-8 pt-6 border-t border-border">
-      <h2 className="text-base font-semibold mb-4">API Explorer</h2>
+      <div className="flex items-center gap-3 mb-4">
+        <h2 className="text-base font-semibold">API Explorer</h2>
+        <button
+          onClick={() => setShowCatalog(!showCatalog)}
+          className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${showCatalog ? "bg-accent text-white" : "border border-border bg-bg2 text-text2 hover:text-text hover:border-accent"}`}
+        >
+          {showCatalog ? "Hide catalog" : "Browse APIs"}
+        </button>
+      </div>
+
+      {showCatalog && (
+        <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {API_CATALOG.map((group) => (
+            <div key={group.group} className="rounded-lg border border-border bg-bg2 p-3">
+              <h3 className="text-xs font-semibold text-accent uppercase tracking-wider mb-2">{group.group}</h3>
+              <div className="space-y-1">
+                {group.endpoints.map((ep) => (
+                  <button
+                    key={ep.path + ep.method}
+                    onClick={() => selectEndpoint(ep)}
+                    className="w-full text-left px-2 py-1.5 rounded-md hover:bg-bg3 transition-colors group"
+                  >
+                    <span className={`inline-block w-11 text-[10px] font-bold mr-2 ${ep.method === "GET" ? "text-green" : ep.method === "POST" ? "text-yellow" : "text-blue"}`}>
+                      {ep.method}
+                    </span>
+                    <span className="text-xs text-text group-hover:text-accent transition-colors">{ep.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex gap-2.5 mb-4">
         <select
           value={method}
@@ -198,6 +304,7 @@ function ApiExplorer() {
           <option value="GET">GET</option>
           <option value="POST">POST</option>
           <option value="PUT">PUT</option>
+          <option value="DELETE">DELETE</option>
         </select>
         <input
           type="text"
@@ -215,6 +322,15 @@ function ApiExplorer() {
           Send
         </button>
       </div>
+      {(method === "POST" || method === "PUT") && (
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          placeholder='{"commands": [{"code": "switch_1", "value": true}]}'
+          rows={3}
+          className="w-full mb-4 px-3 py-2 rounded-lg border border-border bg-bg2 text-text text-sm font-mono placeholder:text-text2 focus:outline-none focus:border-accent resize-y"
+        />
+      )}
       {result && (
         <pre className="bg-bg2 rounded-lg p-4 font-mono text-xs text-text2 max-h-96 overflow-auto border border-border whitespace-pre-wrap break-all">
           {result}
