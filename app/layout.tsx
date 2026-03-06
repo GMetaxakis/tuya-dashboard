@@ -19,6 +19,13 @@ export const metadata: Metadata = {
   description: "Inspect and manage your Tuya smart devices",
   manifest: "/manifest.json",
   themeColor: "#4f8ff7",
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
