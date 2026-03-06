@@ -1,5 +1,5 @@
-const CACHE_NAME = "tuya-dashboard-v1";
-const PRECACHE = ["/", "/login"];
+const CACHE_NAME = "tuya-dashboard-v2";
+const PRECACHE = ["/", "/login", "/offline.html"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -18,9 +18,19 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  // Network-first for API calls, cache-first for static assets
+  // Skip API calls — always go to network
   if (event.request.url.includes("/api/")) return;
 
+  // For navigation requests: network-first, fall back to offline page
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request)
+        .catch(() => caches.match("/offline.html"))
+    );
+    return;
+  }
+
+  // For static assets: stale-while-revalidate
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const fetched = fetch(event.request).then((response) => {
@@ -29,7 +39,7 @@ self.addEventListener("fetch", (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return response;
-      });
+      }).catch(() => cached);
       return cached || fetched;
     })
   );
