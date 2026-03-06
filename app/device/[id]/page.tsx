@@ -50,7 +50,13 @@ interface DeviceListItem {
   online: boolean;
 }
 
-type Tab = "control" | "dps" | "suggested" | "config" | "raw";
+type Tab = "control" | "dps" | "suggested" | "config" | "logs" | "raw";
+
+interface LogEntry {
+  code: string;
+  value: string;
+  event_time: number;
+}
 
 export default function DevicePage({ params }: { params: Promise<{ id: string }> }) {
   const { id: deviceId } = use(params);
@@ -63,6 +69,8 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
   const [renaming, setRenaming] = useState(false);
   const [copied, setCopied] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { toast } = useToast();
 
@@ -157,6 +165,33 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
       toast(`Error: ${(e as Error).message}`, "error");
     } finally {
       setRenaming(false);
+    }
+  }
+
+  async function loadLogs() {
+    setLogsLoading(true);
+    try {
+      const now = Date.now();
+      const dayAgo = now - 24 * 60 * 60 * 1000;
+      const r = await fetch("/api/raw", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          method: "GET",
+          path: `/v2.0/cloud/thing/${deviceId}/state-change-logs?start_time=${dayAgo}&end_time=${now}&size=50`,
+        }),
+      });
+      const d = await r.json();
+      if (d.success && d.result) {
+        const entries = (d.result as { logs: LogEntry[] }).logs || [];
+        setLogs(entries);
+      } else {
+        setLogs([]);
+      }
+    } catch {
+      setLogs([]);
+    } finally {
+      setLogsLoading(false);
     }
   }
 
@@ -315,15 +350,15 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
 
       {/* Tabs */}
       <div className="flex gap-0.5 bg-bg2 rounded-lg p-1 w-fit mb-5 overflow-x-auto">
-        {(["control", "dps", "suggested", "config", "raw"] as Tab[]).map((t) => (
+        {(["control", "dps", "suggested", "config", "logs", "raw"] as Tab[]).map((t) => (
           <button
             key={t}
-            onClick={() => setTab(t)}
+            onClick={() => { setTab(t); if (t === "logs" && logs.length === 0) loadLogs(); }}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
               tab === t ? "bg-bg3 text-text" : "text-text2 hover:text-text"
             }`}
           >
-            {t === "control" ? "Control" : t === "dps" ? "Data Points" : t === "suggested" ? "Suggested Entities" : t === "config" ? "LocalTuya Config" : "Raw API"}
+            {{ control: "Control", dps: "Data Points", suggested: "Entities", config: "LocalTuya", logs: "Logs", raw: "Raw API" }[t]}
           </button>
         ))}
       </div>
@@ -423,6 +458,37 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
           <pre className="bg-bg2 rounded-lg p-4 font-mono text-xs text-text2 max-h-[500px] overflow-auto border border-border whitespace-pre-wrap break-all">
             {JSON.stringify(data.localtuya_config, null, 2)}
           </pre>
+        </div>
+      )}
+
+      {tab === "logs" && (
+        <div>
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              onClick={loadLogs}
+              disabled={logsLoading}
+              className="px-3 py-1.5 rounded-md bg-accent text-white text-xs font-medium hover:opacity-90 disabled:opacity-50"
+            >
+              {logsLoading ? "Loading..." : "Refresh Logs"}
+            </button>
+            <span className="text-xs text-text2">Last 24 hours, up to 50 entries</span>
+          </div>
+          {logs.length === 0 && !logsLoading && (
+            <div className="p-8 text-center text-text2 text-sm">No state changes in the last 24 hours</div>
+          )}
+          {logs.length > 0 && (
+            <div className="space-y-1">
+              {logs.map((log, i) => (
+                <div key={i} className="flex items-center gap-4 px-4 py-2.5 rounded-lg bg-bg2 border border-border">
+                  <span className="text-xs text-text2 font-mono w-40 shrink-0">
+                    {new Date(log.event_time).toLocaleString()}
+                  </span>
+                  <span className="text-xs font-mono text-accent font-medium">{log.code}</span>
+                  <span className="text-xs font-mono text-text">{log.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
