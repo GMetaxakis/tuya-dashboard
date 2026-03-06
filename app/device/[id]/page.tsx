@@ -36,11 +36,18 @@ interface DeviceInfo {
   product_id: string;
 }
 
+interface FirmwareInfo {
+  module: string;
+  version: string;
+  upgrade_available: boolean;
+}
+
 interface InspectData {
   device: DeviceInfo;
   dps: DP[];
   suggested_entities: SuggestedEntity[];
   localtuya_config: Record<string, unknown>[];
+  firmware: FirmwareInfo[];
 }
 
 interface DeviceListItem {
@@ -337,6 +344,15 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
             <span className="text-text2">DPs: </span>
             <span className="text-text2/80">{data.dps.length}</span>
           </div>
+          {data.firmware && data.firmware.length > 0 && data.firmware.map((fw) => (
+            <div key={fw.module} className="text-xs">
+              <span className="text-text2">FW: </span>
+              <span className="font-mono text-text2/80">{fw.version}</span>
+              {fw.upgrade_available && (
+                <span className="ml-1.5 px-1.5 py-0.5 rounded bg-orange/15 text-orange text-[10px] font-medium">Update</span>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 

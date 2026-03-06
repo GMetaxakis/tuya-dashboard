@@ -9,11 +9,12 @@ export async function GET(request: NextRequest) {
   if (!deviceId) return NextResponse.json({ success: false, error: "id parameter required" }, { status: 400 });
 
   try {
-    // Fetch device info, device list (for fallback name/online), and DPs in parallel
-    const [infoResult, allDevices, { merged, category }] = await Promise.all([
+    // Fetch device info, device list (for fallback name/online), DPs, and firmware in parallel
+    const [infoResult, allDevices, { merged, category }, firmwareResult] = await Promise.all([
       api.getDeviceInfo(deviceId).catch(() => ({ success: false } as Record<string, unknown>)),
       api.getDevices(),
       mergeSpecAndShadow(api, deviceId),
+      api.request("GET", `/v1.0/iot-03/devices/${deviceId}/firmware`).catch(() => ({ success: false } as Record<string, unknown>)),
     ]);
 
     // Find this device in the full list (reliable source for name + online)
@@ -72,7 +73,18 @@ export async function GET(request: NextRequest) {
       ...(e.state_on ? { state_on: e.state_on, state_off: e.state_off } : {}),
     }));
 
-    return NextResponse.json({ success: true, device: devInfo, dps, suggested_entities: suggested, localtuya_config: localtuyaConfig });
+    // Extract firmware info
+    let firmware: { module: string; version: string; upgrade_available: boolean }[] = [];
+    if (firmwareResult.success && firmwareResult.result) {
+      const fwList = firmwareResult.result as Record<string, unknown>[];
+      firmware = (Array.isArray(fwList) ? fwList : []).map((fw) => ({
+        module: String(fw.module || fw.name || "?"),
+        version: String(fw.current_version || fw.version || "?"),
+        upgrade_available: fw.upgrade_status === 1 || fw.upgrade_status === 2,
+      }));
+    }
+
+    return NextResponse.json({ success: true, device: devInfo, dps, suggested_entities: suggested, localtuya_config: localtuyaConfig, firmware });
   } catch (e) {
     return NextResponse.json({ success: false, error: (e as Error).message }, { status: 500 });
   }
