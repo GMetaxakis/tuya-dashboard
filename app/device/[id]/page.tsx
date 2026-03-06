@@ -3,6 +3,7 @@
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import ControlPanel from "@/components/panels";
 
 interface DP {
   dp_id: number;
@@ -40,7 +41,7 @@ interface InspectData {
   localtuya_config: Record<string, unknown>[];
 }
 
-type Tab = "dps" | "suggested" | "config" | "raw";
+type Tab = "control" | "dps" | "suggested" | "config" | "raw";
 
 export default function DevicePage({ params }: { params: Promise<{ id: string }> }) {
   const { id: deviceId } = use(params);
@@ -48,7 +49,7 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
   const [data, setData] = useState<InspectData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<Tab>("dps");
+  const [tab, setTab] = useState<Tab>("control");
   const [rawResult, setRawResult] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [status, setStatus] = useState("");
@@ -182,7 +183,7 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
 
       {/* Tabs */}
       <div className="flex gap-0.5 bg-bg2 rounded-lg p-1 w-fit mb-5">
-        {(["dps", "suggested", "config", "raw"] as Tab[]).map((t) => (
+        {(["control", "dps", "suggested", "config", "raw"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -190,12 +191,21 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
               tab === t ? "bg-bg3 text-text" : "text-text2 hover:text-text"
             }`}
           >
-            {t === "dps" ? "Data Points" : t === "suggested" ? "Suggested Entities" : t === "config" ? "LocalTuya Config" : "Raw API"}
+            {t === "control" ? "Control" : t === "dps" ? "Data Points" : t === "suggested" ? "Suggested Entities" : t === "config" ? "LocalTuya Config" : "Raw API"}
           </button>
         ))}
       </div>
 
       {/* Tab content */}
+      {tab === "control" && (
+        <ControlPanel
+          category={dev.category}
+          deviceId={deviceId}
+          dps={data.dps}
+          onRefresh={loadDevice}
+        />
+      )}
+
       {tab === "dps" && (
         <table className="w-full text-sm">
           <thead>
