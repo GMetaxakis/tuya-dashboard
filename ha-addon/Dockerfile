@@ -19,7 +19,5 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# HA Supervisor forces /init as entrypoint and /run.sh as CMD.
-# Provide both as simple pass-throughs to node.
-RUN printf '#!/bin/sh\nexec "$@"\n' > /init && chmod +x /init
-RUN printf '#!/bin/sh\nexec node /app/server.js\n' > /run.sh && chmod +x /run.sh
+ENTRYPOINT []
+CMD ["node", "server.js"]
