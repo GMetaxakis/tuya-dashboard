@@ -40,6 +40,8 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [spacesLoading, setSpacesLoading] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [batchLoading, setBatchLoading] = useState(false);
 
   const loadDevices = useCallback(async () => {
     setLoading(true);
@@ -86,6 +88,37 @@ export default function Home() {
     const next = viewMode === "list" ? "rooms" : "list";
     setViewMode(next);
     if (next === "rooms") loadSpaces();
+  }
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selected.size === filtered.length) setSelected(new Set());
+    else setSelected(new Set(filtered.map((d) => d.id)));
+  }
+
+  async function batchCommand(value: boolean) {
+    setBatchLoading(true);
+    const results = await Promise.allSettled(
+      Array.from(selected).map((deviceId) =>
+        fetch("/api/command", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ device_id: deviceId, commands: [{ code: "switch_1", value }] }),
+        }).then((r) => r.json())
+      )
+    );
+    const succeeded = results.filter((r) => r.status === "fulfilled" && (r.value as { success: boolean }).success).length;
+    const failed = results.length - succeeded;
+    setError(failed > 0 ? `${succeeded} succeeded, ${failed} failed` : "");
+    setBatchLoading(false);
+    setSelected(new Set());
   }
 
   async function handleLogout() {
@@ -156,58 +189,101 @@ export default function Home() {
           <RoomView spaces={spaces} devices={filtered} search={search} />
         )
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-text2 text-xs uppercase tracking-wider">
-                <th className="text-left p-3 border-b border-border w-8"></th>
-                <th className="text-left p-3 border-b border-border">Name</th>
-                <th className="text-left p-3 border-b border-border">Category</th>
-                <th className="text-left p-3 border-b border-border">Device ID</th>
-                <th className="text-left p-3 border-b border-border">Local Key</th>
-                <th className="text-left p-3 border-b border-border">IP</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr>
-                  <td colSpan={6} className="p-8 text-center text-text2">
-                    <div className="inline-block w-5 h-5 border-2 border-border border-t-accent rounded-full animate-spin" />
-                  </td>
+        <>
+          {selected.size > 0 && (
+            <div className="flex items-center gap-3 px-4 py-3 mb-3 rounded-lg bg-accent/10 border border-accent/20">
+              <span className="text-sm font-medium">{selected.size} selected</span>
+              <button
+                onClick={() => batchCommand(true)}
+                disabled={batchLoading}
+                className="px-3 py-1.5 rounded-md bg-green/15 text-green text-xs font-medium hover:bg-green/25 disabled:opacity-50"
+              >
+                {batchLoading ? "Sending..." : "All On"}
+              </button>
+              <button
+                onClick={() => batchCommand(false)}
+                disabled={batchLoading}
+                className="px-3 py-1.5 rounded-md bg-red/15 text-red text-xs font-medium hover:bg-red/25 disabled:opacity-50"
+              >
+                {batchLoading ? "Sending..." : "All Off"}
+              </button>
+              <button
+                onClick={() => setSelected(new Set())}
+                className="px-3 py-1.5 rounded-md border border-border text-text2 text-xs hover:text-text"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-text2 text-xs uppercase tracking-wider">
+                  <th className="p-3 border-b border-border w-8">
+                    <input
+                      type="checkbox"
+                      checked={filtered.length > 0 && selected.size === filtered.length}
+                      onChange={toggleSelectAll}
+                      className="accent-accent"
+                    />
+                  </th>
+                  <th className="text-left p-3 border-b border-border w-8"></th>
+                  <th className="text-left p-3 border-b border-border">Name</th>
+                  <th className="text-left p-3 border-b border-border">Category</th>
+                  <th className="text-left p-3 border-b border-border">Device ID</th>
+                  <th className="text-left p-3 border-b border-border">Local Key</th>
+                  <th className="text-left p-3 border-b border-border">IP</th>
                 </tr>
-              )}
-              {!loading && filtered.map((d) => (
-                <tr key={d.id} className="hover:bg-bg2 transition-colors">
-                  <td className="p-3 border-b border-border">
-                    <span className={`inline-block w-2 h-2 rounded-full ${d.online ? "bg-green" : "bg-red"}`} />
-                  </td>
-                  <td className="p-3 border-b border-border">
-                    <Link href={`/device/${d.id}`} className="font-medium hover:text-accent transition-colors">
-                      {d.name}
-                    </Link>
-                  </td>
-                  <td className="p-3 border-b border-border">
-                    <span className="inline-block px-2 py-0.5 rounded bg-bg3 text-accent text-xs font-medium">
-                      {CATEGORIES[d.category] || d.category}
-                    </span>
-                  </td>
-                  <td className="p-3 border-b border-border font-mono text-xs text-text2">{d.id}</td>
-                  <td className="p-3 border-b border-border font-mono text-xs text-text2 max-w-36 truncate" title={d.local_key}>
-                    {d.local_key}
-                  </td>
-                  <td className="p-3 border-b border-border font-mono text-xs text-text2">{d.ip}</td>
-                </tr>
-              ))}
-              {!loading && !filtered.length && (
-                <tr>
-                  <td colSpan={6} className="p-8 text-center text-text2">
-                    {search ? "No devices match your search" : "No devices found"}
-                  </td>
-                </tr>
+              </thead>
+              <tbody>
+                {loading && (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-text2">
+                      <div className="inline-block w-5 h-5 border-2 border-border border-t-accent rounded-full animate-spin" />
+                    </td>
+                  </tr>
+                )}
+                {!loading && filtered.map((d) => (
+                  <tr key={d.id} className={`hover:bg-bg2 transition-colors ${selected.has(d.id) ? "bg-accent/5" : ""}`}>
+                    <td className="p-3 border-b border-border">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(d.id)}
+                        onChange={() => toggleSelect(d.id)}
+                        className="accent-accent"
+                      />
+                    </td>
+                    <td className="p-3 border-b border-border">
+                      <span className={`inline-block w-2 h-2 rounded-full ${d.online ? "bg-green" : "bg-red"}`} />
+                    </td>
+                    <td className="p-3 border-b border-border">
+                      <Link href={`/device/${d.id}`} className="font-medium hover:text-accent transition-colors">
+                        {d.name}
+                      </Link>
+                    </td>
+                    <td className="p-3 border-b border-border">
+                      <span className="inline-block px-2 py-0.5 rounded bg-bg3 text-accent text-xs font-medium">
+                        {CATEGORIES[d.category] || d.category}
+                      </span>
+                    </td>
+                    <td className="p-3 border-b border-border font-mono text-xs text-text2">{d.id}</td>
+                    <td className="p-3 border-b border-border font-mono text-xs text-text2 max-w-36 truncate" title={d.local_key}>
+                      {d.local_key}
+                    </td>
+                    <td className="p-3 border-b border-border font-mono text-xs text-text2">{d.ip}</td>
+                  </tr>
+                ))}
+                {!loading && !filtered.length && (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-text2">
+                      {search ? "No devices match your search" : "No devices found"}
+                    </td>
+                  </tr>
               )}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
 
       <ApiExplorer />
