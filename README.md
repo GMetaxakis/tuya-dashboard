@@ -1,36 +1,98 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Tuya Dashboard
 
-## Getting Started
+A self-hosted web dashboard for inspecting and managing Tuya smart devices. Users log in with their own Tuya IoT Platform credentials — no server-side API keys needed.
 
-First, run the development server:
+## Features
+
+- **Device List** — All devices with online status, categories, device IDs, and local keys
+- **DP Inspector** — Data Points for any device with current values, types, and ranges
+- **LocalTuya Config Generator** — Auto-generates entity configs for [LocalTuya](https://github.com/rospogriern/localtuya)
+- **Device Rename** — Rename devices directly from the dashboard
+- **API Explorer** — Send raw Tuya API calls (GET/POST/PUT) for debugging
+- **Suggested Entities** — Smart mapping of DPs to Home Assistant entity types
+- **Secure Auth** — Credentials encrypted in HTTP-only cookies, never exposed to client JS
+
+## How It Works
+
+1. User enters their Tuya IoT Platform credentials (Access ID + Secret)
+2. Server validates by fetching the token from Tuya Cloud
+3. Credentials are AES-256-GCM encrypted and stored as an HTTP-only cookie
+4. All subsequent API calls use the user's own credentials
+5. No credentials are stored on the server
+
+## Prerequisites
+
+Each user needs a **Tuya IoT Platform** account:
+
+1. Go to [iot.tuya.com](https://iot.tuya.com)
+2. Create a **Cloud Project**
+3. Link your **Smart Life / Tuya Smart** app account under **Devices**
+4. Subscribe to these APIs under **Service API**:
+   - IoT Core
+   - Authorization Token Management
+   - Smart Home Basic Service
+
+## Setup
 
 ```bash
+git clone https://github.com/GMetaxakis/tuya-dashboard.git
+cd tuya-dashboard
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) and log in with your Tuya credentials.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Variables (Optional)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `COOKIE_SECRET` | Encryption key for cookie storage | Auto-generated |
+| `TRACKING_ENDPOINT` | URL to receive anonymous usage events | None |
 
-## Learn More
+## Deploy
 
-To learn more about Next.js, take a look at the following resources:
+### Vercel
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/GMetaxakis/tuya-dashboard)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Set `COOKIE_SECRET` in your Vercel environment variables for production.
 
-## Deploy on Vercel
+### Docker
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+docker build -t tuya-dashboard .
+docker run -p 3000:3000 -e COOKIE_SECRET=your-secret tuya-dashboard
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## API Routes
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/auth/login` | POST | Login with Tuya credentials |
+| `/api/auth/logout` | POST | Clear session |
+| `/api/auth/check` | GET | Check auth status |
+| `/api/devices` | GET | List all devices |
+| `/api/inspect?id=xxx` | GET | Full DP inspection + suggested config |
+| `/api/shadow?id=xxx` | GET | Shadow properties |
+| `/api/spec?id=xxx` | GET | Device specification |
+| `/api/status?id=xxx` | GET | Current DP values |
+| `/api/info?id=xxx` | GET | Device info |
+| `/api/rename` | POST | Rename device (`{id, name}`) |
+| `/api/raw` | POST | Raw API call (`{method, path, body?}`) |
+
+## Tech Stack
+
+- [Next.js](https://nextjs.org) 16 (App Router)
+- [Tailwind CSS](https://tailwindcss.com) v4
+- TypeScript
+
+## Security
+
+- Tuya credentials are AES-256-GCM encrypted in HTTP-only cookies
+- No credentials stored server-side — each user brings their own
+- All Tuya API calls authenticated with HMAC-SHA256
+
+## License
+
+MIT
