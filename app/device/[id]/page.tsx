@@ -93,8 +93,8 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deviceId]);
 
-  async function loadDevice() {
-    setLoading(true);
+  async function loadDevice(silent = false) {
+    if (!silent) setLoading(true);
     setError("");
     try {
       const r = await fetch(`/api/inspect?id=${deviceId}`);
@@ -103,13 +103,18 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
       if (d.success) {
         setData(d);
       } else {
-        setError(d.error || "Failed to load device");
+        if (!silent) setError(d.error || "Failed to load device");
       }
     } catch (e) {
-      setError((e as Error).message);
+      if (!silent) setError((e as Error).message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
+  }
+
+  // Lightweight refresh for control panels — no loading spinner
+  function refreshDPs() {
+    loadDevice(true);
   }
 
   async function handleRename() {
@@ -248,7 +253,7 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
               Rename
             </button>
             <button
-              onClick={loadDevice}
+              onClick={() => loadDevice()}
               disabled={loading}
               className="px-3 py-1.5 rounded-md bg-accent text-white text-xs font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
             >
@@ -307,7 +312,7 @@ export default function DevicePage({ params }: { params: Promise<{ id: string }>
           category={dev.category}
           deviceId={deviceId}
           dps={data.dps}
-          onRefresh={loadDevice}
+          onRefresh={refreshDPs}
         />
       )}
 
